@@ -1,5 +1,5 @@
+use crate::{cloudflare, credentials, github, llm, scraper};
 use serde::{Deserialize, Serialize};
-use crate::{credentials, github, cloudflare, llm, scraper};
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,10 +78,13 @@ pub struct OAuthUrl {
 
 #[tauri::command]
 pub async fn generate_oauth_url(provider: String, client_id: String) -> Result<OAuthUrl, String> {
-    let state = format!("youai_{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis());
+    let state = format!(
+        "youai_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
 
     let redirect_uri = "https://youai.dev/oauth/callback"; // User copies this URL back
 
@@ -121,8 +124,12 @@ pub struct ExchangeRequest {
 #[tauri::command]
 pub async fn exchange_oauth_code(request: ExchangeRequest) -> Result<(), String> {
     // Parse the authorization code from the redirect URL
-    let parsed = url::Url::parse(&request.redirect_url)
-        .map_err(|e| format!("Invalid URL: {}. Make sure you copied the entire URL from your browser.", e))?;
+    let parsed = url::Url::parse(&request.redirect_url).map_err(|e| {
+        format!(
+            "Invalid URL: {}. Make sure you copied the entire URL from your browser.",
+            e
+        )
+    })?;
 
     let code = parsed
         .query_pairs()
@@ -163,7 +170,12 @@ pub async fn exchange_oauth_code(request: ExchangeRequest) -> Result<(), String>
                 "client_secret": request.client_secret,
             }),
         ),
-        _ => return Err(format!("OAuth exchange not supported for: {}", request.provider)),
+        _ => {
+            return Err(format!(
+                "OAuth exchange not supported for: {}",
+                request.provider
+            ))
+        }
     };
 
     let resp = client
@@ -175,14 +187,20 @@ pub async fn exchange_oauth_code(request: ExchangeRequest) -> Result<(), String>
         .map_err(|e| format!("Token exchange failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Read failed: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Read failed: {}", e))?;
 
     if !status.is_success() {
-        return Err(format!("Authorization failed ({}): {}. Try connecting again.", status, text));
+        return Err(format!(
+            "Authorization failed ({}): {}. Try connecting again.",
+            status, text
+        ));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Parse failed: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Parse failed: {}", e))?;
 
     let access_token = json["access_token"]
         .as_str()
@@ -257,7 +275,7 @@ pub async fn chat_with_llm(request: ChatWithLlmRequest) -> Result<llm::ChatRespo
 
 fn build_designer_system_prompt(project_context: Option<&str>) -> String {
     let mut prompt = String::from(
-r#"You are a friendly, expert web designer helping someone build their website. Your job is to:
+        r#"You are a friendly, expert web designer helping someone build their website. Your job is to:
 
 1. Understand what they want through natural conversation
 2. Ask the RIGHT questions — they may not know design terms, so keep it simple
@@ -285,7 +303,8 @@ Start by understanding their goal, not jumping to code. Ask about:
 - What feeling should visitors get?
 
 Build rapport first, then build the site.
-"#);
+"#,
+    );
 
     if let Some(context) = project_context {
         prompt.push_str("\n\nPROJECT CONTEXT:\n");
@@ -417,7 +436,9 @@ pub async fn list_projects() -> Result<Vec<Project>, String> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_dir() { continue; }
+        if !path.is_dir() {
+            continue;
+        }
 
         let meta_path = path.join(".you-ai/project.json");
         if meta_path.exists() {
@@ -451,8 +472,8 @@ pub async fn open_project(name: String) -> Result<Project, String> {
 
     let content = std::fs::read_to_string(&meta_path)
         .map_err(|e| format!("Failed to read project: {}", e))?;
-    let meta: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse project: {}", e))?;
+    let meta: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse project: {}", e))?;
 
     Ok(Project {
         name: meta["name"].as_str().unwrap_or("Unknown").to_string(),
@@ -485,18 +506,16 @@ pub async fn publish_site(request: PublishRequest) -> Result<PublishResult, Stri
 
     let content = std::fs::read_to_string(&meta_path)
         .map_err(|e| format!("Failed to read project: {}", e))?;
-    let mut meta: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse project: {}", e))?;
+    let mut meta: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse project: {}", e))?;
 
     // Create GitHub repo if it doesn't exist
     let repo_name = if let Some(repo) = meta["github_repo"].as_str() {
         repo.to_string()
     } else {
         let slug = request.project_name.to_lowercase().replace(' ', "-");
-        let repo = github::create_repository(
-            &slug,
-            &format!("Website: {}", request.project_name),
-        ).await?;
+        let repo =
+            github::create_repository(&slug, &format!("Website: {}", request.project_name)).await?;
         meta["github_repo"] = serde_json::json!(repo.full_name);
         std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).ok();
         repo.full_name
@@ -506,7 +525,8 @@ pub async fn publish_site(request: PublishRequest) -> Result<PublishResult, Stri
     let mut files: Vec<(String, String)> = Vec::new();
     collect_site_files(&project_path, &project_path, &mut files)?;
 
-    let commit_msg = request.commit_message
+    let commit_msg = request
+        .commit_message
         .unwrap_or_else(|| "Update site via You AI Website Builder".to_string());
 
     github::push_files(&repo_name, files, &commit_msg).await?;
@@ -519,7 +539,8 @@ pub async fn publish_site(request: PublishRequest) -> Result<PublishResult, Stri
             match cloudflare::create_pages_project(&slug, &repo_name, &account_id).await {
                 Ok(pages) => {
                     meta["cloudflare_project"] = serde_json::json!(pages.name);
-                    meta["live_url"] = serde_json::json!(format!("https://{}.pages.dev", pages.subdomain));
+                    meta["live_url"] =
+                        serde_json::json!(format!("https://{}.pages.dev", pages.subdomain));
                     std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).ok();
                 }
                 Err(e) => {
@@ -545,13 +566,11 @@ pub async fn get_site_preview(project_name: String) -> Result<String, String> {
     let project_path = projects_dir.join(&project_name);
     let index_path = project_path.join("index.html");
 
-    std::fs::read_to_string(&index_path)
-        .map_err(|e| format!("Failed to read site preview: {}", e))
+    std::fs::read_to_string(&index_path).map_err(|e| format!("Failed to read site preview: {}", e))
 }
 
 fn get_projects_dir() -> Result<PathBuf, String> {
-    let home = dirs_next::home_dir()
-        .ok_or("Cannot determine home directory")?;
+    let home = dirs_next::home_dir().ok_or("Cannot determine home directory")?;
     let dir = home.join("You AI Sites");
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create sites directory: {}", e))?;
@@ -563,20 +582,27 @@ fn collect_site_files(
     current: &std::path::Path,
     files: &mut Vec<(String, String)>,
 ) -> Result<(), String> {
-    let entries = std::fs::read_dir(current)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
+    let entries =
+        std::fs::read_dir(current).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
 
         // Skip hidden dirs and metadata
-        if name.starts_with('.') { continue; }
+        if name.starts_with('.') {
+            continue;
+        }
 
         if path.is_dir() {
             collect_site_files(base, &path, files)?;
         } else {
-            let relative = path.strip_prefix(base)
+            let relative = path
+                .strip_prefix(base)
                 .map_err(|_| "Path error")?
                 .to_string_lossy()
                 .to_string();

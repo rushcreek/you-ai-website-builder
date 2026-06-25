@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::credentials;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmProvider {
@@ -24,7 +24,8 @@ pub fn get_available_providers() -> Vec<LlmProvider> {
             name: "Claude".to_string(),
             auth_type: "api_key".to_string(),
             oauth_url: None,
-            description: "Anthropic's Claude — excellent at following design instructions".to_string(),
+            description: "Anthropic's Claude — excellent at following design instructions"
+                .to_string(),
         },
         LlmProvider {
             id: "gemini".to_string(),
@@ -108,14 +109,17 @@ async fn send_openai_chat(token: &str, request: &ChatRequest) -> Result<ChatResp
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
 
     if !status.is_success() {
         return Err(format!("API error ({}): {}", status, text));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let content = json["choices"][0]["message"]["content"]
         .as_str()
@@ -126,18 +130,25 @@ async fn send_openai_chat(token: &str, request: &ChatRequest) -> Result<ChatResp
         .as_str()
         .map(|s| s.to_string());
 
-    Ok(ChatResponse { content, finish_reason })
+    Ok(ChatResponse {
+        content,
+        finish_reason,
+    })
 }
 
 async fn send_claude_chat(token: &str, request: &ChatRequest) -> Result<ChatResponse, String> {
     let client = reqwest::Client::new();
 
-    let messages: Vec<serde_json::Value> = request.messages.iter().map(|msg| {
-        serde_json::json!({
-            "role": msg.role,
-            "content": msg.content
+    let messages: Vec<serde_json::Value> = request
+        .messages
+        .iter()
+        .map(|msg| {
+            serde_json::json!({
+                "role": msg.role,
+                "content": msg.content
+            })
         })
-    }).collect();
+        .collect();
 
     let mut body = serde_json::json!({
         "model": "claude-sonnet-4-20250514",
@@ -160,37 +171,49 @@ async fn send_claude_chat(token: &str, request: &ChatRequest) -> Result<ChatResp
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
 
     if !status.is_success() {
         return Err(format!("API error ({}): {}", status, text));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let content = json["content"][0]["text"]
         .as_str()
         .unwrap_or("")
         .to_string();
 
-    let finish_reason = json["stop_reason"]
-        .as_str()
-        .map(|s| s.to_string());
+    let finish_reason = json["stop_reason"].as_str().map(|s| s.to_string());
 
-    Ok(ChatResponse { content, finish_reason })
+    Ok(ChatResponse {
+        content,
+        finish_reason,
+    })
 }
 
 async fn send_gemini_chat(token: &str, request: &ChatRequest) -> Result<ChatResponse, String> {
     let client = reqwest::Client::new();
 
-    let contents: Vec<serde_json::Value> = request.messages.iter().map(|msg| {
-        let role = if msg.role == "assistant" { "model" } else { "user" };
-        serde_json::json!({
-            "role": role,
-            "parts": [{"text": msg.content}]
+    let contents: Vec<serde_json::Value> = request
+        .messages
+        .iter()
+        .map(|msg| {
+            let role = if msg.role == "assistant" {
+                "model"
+            } else {
+                "user"
+            };
+            serde_json::json!({
+                "role": role,
+                "parts": [{"text": msg.content}]
+            })
         })
-    }).collect();
+        .collect();
 
     let mut body = serde_json::json!({
         "contents": contents,
@@ -215,19 +238,25 @@ async fn send_gemini_chat(token: &str, request: &ChatRequest) -> Result<ChatResp
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
 
     if !status.is_success() {
         return Err(format!("API error ({}): {}", status, text));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let content = json["candidates"][0]["content"]["parts"][0]["text"]
         .as_str()
         .unwrap_or("")
         .to_string();
 
-    Ok(ChatResponse { content, finish_reason: Some("stop".to_string()) })
+    Ok(ChatResponse {
+        content,
+        finish_reason: Some("stop".to_string()),
+    })
 }

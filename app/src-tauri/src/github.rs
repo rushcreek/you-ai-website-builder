@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::credentials;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubRepo {
@@ -25,7 +25,10 @@ pub async fn create_repository(name: &str, description: &str) -> Result<GitHubRe
 
     let resp = client
         .post("https://api.github.com/user/repos")
-        .header("Authorization", format!("Bearer {}", credential.access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )
         .header("User-Agent", "You-AI-Website-Builder/0.1")
         .header("Accept", "application/vnd.github+json")
         .json(&body)
@@ -34,20 +37,26 @@ pub async fn create_repository(name: &str, description: &str) -> Result<GitHubRe
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Read failed: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Read failed: {}", e))?;
 
     if !status.is_success() {
         return Err(format!("GitHub API error ({}): {}", status, text));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Parse failed: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Parse failed: {}", e))?;
 
     Ok(GitHubRepo {
         name: json["name"].as_str().unwrap_or("").to_string(),
         full_name: json["full_name"].as_str().unwrap_or("").to_string(),
         html_url: json["html_url"].as_str().unwrap_or("").to_string(),
-        default_branch: json["default_branch"].as_str().unwrap_or("main").to_string(),
+        default_branch: json["default_branch"]
+            .as_str()
+            .unwrap_or("main")
+            .to_string(),
     })
 }
 
@@ -57,8 +66,7 @@ pub async fn push_files(
     files: Vec<(String, String)>, // (path, content)
     commit_message: &str,
 ) -> Result<(), String> {
-    let credential = credentials::get_credential("github")?
-        .ok_or("GitHub not connected.")?;
+    let credential = credentials::get_credential("github")?.ok_or("GitHub not connected.")?;
 
     let client = reqwest::Client::new();
 
@@ -73,7 +81,10 @@ pub async fn push_files(
 
         let existing = client
             .get(&get_url)
-            .header("Authorization", format!("Bearer {}", credential.access_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", credential.access_token),
+            )
             .header("User-Agent", "You-AI-Website-Builder/0.1")
             .header("Accept", "application/vnd.github+json")
             .send()
@@ -104,7 +115,10 @@ pub async fn push_files(
 
         let resp = client
             .put(&put_url)
-            .header("Authorization", format!("Bearer {}", credential.access_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", credential.access_token),
+            )
             .header("User-Agent", "You-AI-Website-Builder/0.1")
             .header("Accept", "application/vnd.github+json")
             .json(&body)
@@ -123,14 +137,16 @@ pub async fn push_files(
 
 /// Verify GitHub token works
 pub async fn verify_connection() -> Result<String, String> {
-    let credential = credentials::get_credential("github")?
-        .ok_or("GitHub not connected.")?;
+    let credential = credentials::get_credential("github")?.ok_or("GitHub not connected.")?;
 
     let client = reqwest::Client::new();
 
     let resp = client
         .get("https://api.github.com/user")
-        .header("Authorization", format!("Bearer {}", credential.access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )
         .header("User-Agent", "You-AI-Website-Builder/0.1")
         .header("Accept", "application/vnd.github+json")
         .send()
@@ -138,14 +154,17 @@ pub async fn verify_connection() -> Result<String, String> {
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("Read failed: {}", e))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Read failed: {}", e))?;
 
     if !status.is_success() {
         return Err(format!("GitHub connection failed ({}): {}", status, text));
     }
 
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("Parse failed: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("Parse failed: {}", e))?;
 
     Ok(json["login"].as_str().unwrap_or("unknown").to_string())
 }
@@ -168,16 +187,30 @@ struct Base64Encoder<'a> {
 
 impl<'a> Base64Encoder<'a> {
     fn new(output: &'a mut Vec<u8>) -> Self {
-        Self { output, buffer: [0; 3], buffer_len: 0 }
+        Self {
+            output,
+            buffer: [0; 3],
+            buffer_len: 0,
+        }
     }
 
     fn flush_buffer(&mut self) {
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        if self.buffer_len == 0 { return; }
+        if self.buffer_len == 0 {
+            return;
+        }
 
         let b0 = self.buffer[0] as usize;
-        let b1 = if self.buffer_len > 1 { self.buffer[1] as usize } else { 0 };
-        let b2 = if self.buffer_len > 2 { self.buffer[2] as usize } else { 0 };
+        let b1 = if self.buffer_len > 1 {
+            self.buffer[1] as usize
+        } else {
+            0
+        };
+        let b2 = if self.buffer_len > 2 {
+            self.buffer[2] as usize
+        } else {
+            0
+        };
 
         self.output.push(CHARS[b0 >> 2]);
         self.output.push(CHARS[((b0 & 0x03) << 4) | (b1 >> 4)]);

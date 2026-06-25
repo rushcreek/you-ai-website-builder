@@ -17,7 +17,8 @@ pub fn store_credential(provider: &str, credential: &Credential) -> Result<(), S
         .map_err(|e| format!("Failed to create keyring entry: {}", e))?;
     let json = serde_json::to_string(credential)
         .map_err(|e| format!("Failed to serialize credential: {}", e))?;
-    entry.set_password(&json)
+    entry
+        .set_password(&json)
         .map_err(|e| format!("Failed to store credential: {}", e))?;
     Ok(())
 }

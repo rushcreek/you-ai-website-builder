@@ -30,12 +30,13 @@ pub async fn scrape_site_inspiration(url: &str) -> Result<SiteInspiration, Strin
         return Err(format!("Site returned status {}", status));
     }
 
-    let html = resp.text().await
+    let html = resp
+        .text()
+        .await
         .map_err(|e| format!("Failed to read response: {}", e))?;
 
     // Extract title
-    let title = extract_between(&html, "<title>", "</title>")
-        .map(|s| s.trim().to_string());
+    let title = extract_between(&html, "<title>", "</title>").map(|s| s.trim().to_string());
 
     // Extract meta description
     let description = extract_meta_content(&html, "description");
@@ -143,7 +144,10 @@ fn extract_fonts(html: &str) -> Vec<String> {
             if let Some(end) = after_colon.find(|c: char| c == ';' || c == '}' || c == '"') {
                 let font_str = after_colon[..end].trim();
                 // Take first font in the stack
-                let first_font = font_str.split(',').next().unwrap_or("")
+                let first_font = font_str
+                    .split(',')
+                    .next()
+                    .unwrap_or("")
                     .trim()
                     .trim_matches('\'')
                     .trim_matches('"')
@@ -151,8 +155,15 @@ fn extract_fonts(html: &str) -> Vec<String> {
 
                 if !first_font.is_empty()
                     && !fonts.contains(&first_font)
-                    && !["inherit", "initial", "unset", "sans-serif", "serif", "monospace"]
-                        .contains(&first_font.to_lowercase().as_str())
+                    && ![
+                        "inherit",
+                        "initial",
+                        "unset",
+                        "sans-serif",
+                        "serif",
+                        "monospace",
+                    ]
+                    .contains(&first_font.to_lowercase().as_str())
                 {
                     fonts.push(first_font);
                 }
@@ -160,7 +171,9 @@ fn extract_fonts(html: &str) -> Vec<String> {
         }
 
         search_from = abs_idx + 12;
-        if fonts.len() >= 5 { break; }
+        if fonts.len() >= 5 {
+            break;
+        }
     }
 
     fonts
